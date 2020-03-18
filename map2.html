@@ -152,10 +152,16 @@
           zoom: 3,
           center: [-117.50268, 34.04713]
         });
+        view.constraints = {
+          minZoom: 2,  // User cannot zoom out beyond a scale of 1:500,000
+          maxZoom: 7,  // User can overzoom tiles
+          rotationEnabled: false  // Disables map rotation
+        };
 
         var applicationDiv = document.getElementById("applicationDiv");
         var playButton = document.getElementById("playButton");
         var titleDiv = document.getElementById("titleDiv");
+        var updateNote = document.getElementById("updateNote");
         var animation = null;
 
         var yesterday = function() {
@@ -164,10 +170,16 @@
         };
 
         const startDate = new Date(2020, 0, 22).getTime();
-        var hrs = 16;
+
+        const nextUpdate = new Date(new Date().toLocaleDateString() + ' 23:59 UTC');
+        var hrs = new Date().getTime() < nextUpdate.getTime() ? 21 : 0;
         const endDate = new Date().getTime() - (3600 * 1000 * hrs);
-        console.log(new Date().getTime());
-        console.log(new Date(endDate));
+
+        var nextupdHrs = nextUpdate.getHours();
+        console.log(nextUpdate.toLocaleString())
+        updateNote.innerText = 'Next update: ' + nextUpdate.toLocaleString();// + nextUpdate.getTimezoneOffset();
+        //console.log(new Date().getTime());
+        //console.log(new Date(endDate));
 
         function convertToDateString(value) {
           return new Date(value).toLocaleDateString();
@@ -180,7 +192,7 @@
           container: "slider",
           min: startDate,
           max: endDate,
-          values: [endDate],
+          values: [startDate],
           step: 86400, //seconds in a day
           rangeLabelsVisible: true,
           precision: 0,
@@ -192,10 +204,29 @@
 
         const dateFilterField = "dateString";
 
+        const magSum = {
+          onStatisticField: "ct",
+          outStatisticFieldName: "Sum_confirmed",
+          statisticType: "sum",
+          precision: 0
+        };
+
+        const placesCount = {
+          onStatisticField: "1=1",
+          outStatisticFieldName: "record_count",
+          statisticType: "count",
+          precision: 0
+        };
+
+        const statsFields = {
+          record_count: "Places Reporting",
+          Sum_confirmed: "Total Confirmed"
+        };
+
         // wait till the layer view is loaded
         view.whenLayerView(layer).then(function(lv) {
           layerView = lv;
-          setDate(endDate);
+          setDate(startDate);
         });
 
         function setDate(value) {
@@ -205,6 +236,55 @@
           layerView.filter = {
             where: dateFilterField + " = '" + dateStr + "'"
           };
+
+          const statQuery = layerView.filter.createQuery();
+          statQuery.outStatistics = [
+            magSum,
+            placesCount
+          ];
+
+          layer
+          .queryFeatures(statQuery)
+          .then(function(result) {
+            let htmls = [];
+            statsDiv.innerHTML = "";
+            if (result.error) {
+              return result.error;
+            } else {
+              if (result.features.length >= 1) {
+                var attributes = result.features[0].attributes;
+                for (name in statsFields) {
+                  if (attributes[name] && attributes[name] != null) {
+                    const html =
+                      "<div>" +
+                      statsFields[name] +
+                      ": <b><span> " +
+                      attributes[name].toFixed(0) +
+                      "</span></b></div>";
+                    htmls.push(html);
+                  }
+                }
+                var statsHtml =
+                  "<br/><div><span>" +
+                  result.features[0].attributes["record_count"] +
+                  "</span> locations reporting on <b>" +
+                  convertToDateString( slider.viewModel.values[0] );
+                  "</b>.</div><br/>";
+
+                if (htmls[0] == undefined) {
+                  statsDiv.innerHTML = statsHtml;
+                } else {
+                  statsDiv.innerHTML =
+                  htmls[1] + statsHtml;
+                }
+              }
+            }
+          })
+          .catch(function(error) {
+            console.log(error);
+          });
+
+
         }
 
         // When user drags the slider:
@@ -290,28 +370,7 @@
             }
           };
         }
-        /* */
-        const magMax = {
-          onStatisticField: "ct",
-          outStatisticFieldName: "Max_confirmed",
-          statisticType: "max"
-        };
-
-        const magSum = {
-          onStatisticField: "ct",
-          outStatisticFieldName: "Sum_confirmed",
-          statisticType: "sum"
-        };
-
-        const tremorCount = {
-          onStatisticField: "1=1",
-          outStatisticFieldName: "record_count",
-          statisticType: "count"
-        };
-
-        const statsFields = {
-          Sum_confirmed: "Total Confirmed"
-        };
+        
 
         // add a legend for the earthquakes layer
         const legendExpand = new Expand({
@@ -337,21 +396,6 @@
           expanded: true
         });
         //view.ui.add(infoDivExpand, "top-right");
-
-        const toggleButton = document.getElementById("toggle-cluster");
-        //toggleButton.addEventListener("click", toggleClustering);
-
-        // To turn off clustering on a layer, set the
-        // featureReduction property to null
-        function toggleClustering() {
-          let fr = layer.featureReduction;
-          layer.featureReduction =
-            fr && fr.type === "cluster" ? null : clusterConfig;
-          toggleButton.innerText =
-            toggleButton.innerText === "Enable Clustering"
-              ? "Disable Clustering"
-              : "Enable Clustering";
-        }
       });
     </script>
 
@@ -362,6 +406,7 @@
         height: 100%;
         padding: 0;
         margin: 0;
+        background: black;
       }
 
       #applicationDiv {
@@ -385,6 +430,18 @@
         font-style: normal;
         font-size: 1.2019rem;
         padding: 10px;
+      }
+
+      #updateNote{
+        font-size: 12px;
+        font-style: italic;
+        opacity: .8;
+      }
+
+      #statsDiv span {
+        color: #f9c653;
+        font-size: 12pt;
+        font-weight: bolder;
       }
 
       #sliderContainer {
@@ -475,7 +532,13 @@
   <body>
     <div id="applicationDiv">
       <div id="viewDiv">
-        <div id="titleDiv" class="esri-widget">COVID-19 Spread Over Time</div>
+        <div id="titleDiv" class="esri-widget">
+          <div><b>COVID-19 Spread Over Time</b></div>
+          <div id="updateNote"></div>
+          
+          <br />
+          <div id="statsDiv" class="esri-widget"></div>
+        </div>
       </div>
       <div id="sliderContainer" class="esri-widget">
         <div id="playButton" class="esri-widget esri-widget--button toggle-button">
