@@ -1,0 +1,528 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <!--
+  ArcGIS API for JavaScript, https://js.arcgis.com
+  For more information about the timeslider-filter sample, read the original sample description at developers.arcgis.com.
+  https://developers.arcgis.com/javascript/latest/sample-code/timeslider-filter/index.html
+  -->
+<title>COVID-19 ESRI ArcGIS Map</title>
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.14/esri/themes/dark/main.css"
+    />
+    <script src="https://js.arcgis.com/4.14/"></script>
+    <script>
+      require([
+        "esri/Map",
+        "esri/views/MapView",
+        "esri/core/promiseUtils",
+        "esri/layers/GeoJSONLayer",
+        "esri/widgets/TimeSlider",
+        "esri/widgets/Slider",
+        "esri/widgets/Expand",
+        "esri/widgets/Legend"
+      ], function(Map, MapView, promiseUtils, GeoJSONLayer, TimeSlider, Slider, Expand, Legend) {
+        let layerView;
+
+        const layer = new GeoJSONLayer({
+          url:
+            "/esri.geojson",
+          copyright: "CDC / Johns Hopkins",
+          title: "COVID-19 Cases over time",
+          displayField: 'place',
+          renderer: {
+            type: "simple",
+            field: "ct",
+            symbol: {
+              type: "simple-marker",
+              color: "cyan",
+              outline: {
+                color: "white"
+              }
+            },
+            visualVariables: [
+            {
+              type: "opacity",
+              field: "ct",
+              stops: [
+                {
+                  value: 1,
+                  opacity: .7
+                }
+              ],
+              legendOptions: {
+                showLegend: false
+              }
+            },
+              {
+                type: "size",
+                field: "ct",
+                stops: [
+                  {
+                    value: 1,
+                    size: "7px"
+                  },
+                  {
+                    value: 200,
+                    size: "20"
+                  },
+                  {
+                    value: 1000,
+                    size: "50"
+                  },
+                  {
+                    value: 5000,
+                    size: "90"
+                  }
+                ],
+                legendOptions: {
+                  title: "Confirmed Cases"
+                }
+              },
+              {
+                type: "color",
+                field: "ct",
+                stops: [
+                  {
+                    value: 1,
+                    color: "#F9C653",
+                    label: ">1"
+                  },
+                  {
+                    value: 100,
+                    color: "#F8864D",
+                    label: ">100"
+                  },
+                  {
+                    value: 1000,
+                    color: "#C53C06",
+                    label: ">1000"
+                  }
+                ],
+                legendOptions: {
+                  showLegend: false
+                }
+              }
+            ]
+          },
+          popupTemplate: {
+            title: "{title}",
+            content: [
+              {
+                type: "fields",
+                fieldInfos: [
+                  {
+                    fieldName: "place",
+                    label: "Location",
+                    visible: true
+                  },
+                  {
+                    fieldName: "ct",
+                    label: "Confirmed",
+                    visible: true
+                  },
+                  {
+                    fieldName: "coords",
+                    label: "Coordinates",
+                    visible: true
+                  }
+                ]
+              }
+            ]
+          }
+        });
+
+        const clusterConfig = {
+          type: "cluster",
+          clusterRadius: "40px",
+          popupTemplate: {
+            content: [
+              {
+                type: "text",
+                text: "This cluster represents <b>{cluster_count}</b> locations."
+              }
+            ]
+          }
+        };
+/* */
+        layer.featureReduction = clusterConfig;
+/* */
+        const map = new Map({
+          basemap: "dark-gray",
+          layers: [layer]
+        });
+
+        var view = new MapView({
+          map: map,
+          container: "viewDiv",
+          zoom: 3,
+          center: [-117.50268, 34.04713]
+        });
+
+
+        var applicationDiv = document.getElementById("applicationDiv");
+        var sliderValue = document.getElementById("sliderValue");
+        var playButton = document.getElementById("playButton");
+        var titleDiv = document.getElementById("titleDiv");
+        var animation = null;
+
+
+
+        var yesterday =  function(){
+          var dt = new Date();
+          return new Date((dt.setDate(dt.getDate()-1))).toString();
+        }
+
+        const startDate = new Date(2020, 0, 22).getTime();
+        const endDate = (new Date().getTime()) - (86400 * 1000/2);
+        console.log(new Date().getTime());
+        console.log(new Date(endDate));
+       
+        function convertToDateString(value){
+          return new Date(value).toLocaleDateString();
+        }
+
+        
+        view.ui.empty("top-left");
+        view.ui.add(titleDiv, "top-left");
+        const slider = new Slider({
+          container: "slider",
+          min: startDate,
+          max: endDate,
+          values: [endDate],
+          step: 86400, //seconds in a day
+          rangeLabelsVisible: true,
+          precision: 0
+        });
+        slider.labelFormatFunction = function(value, type) {
+          return convertToDateString((type === "value") ? value.toFixed(0) : value);
+        }
+
+        const dateFilterField = "dateString";
+
+        // wait till the layer view is loaded
+        view.whenLayerView(layer).then(function(lv) {
+          layerView = lv;
+          setDate(endDate);
+        });
+
+        function setDate(value){
+          sliderValue.innerText = convertToDateString(value);
+          console.log(value + ' = ' + convertToDateString(value));
+          slider.viewModel.setValue(0, value);
+          layerView.filter = {
+            where: dateFilterField + " = '" + sliderValue.innerText + "'"
+          }
+        }
+
+        // When user drags the slider:
+        //  - stops the animation
+        //  - set the visualized year to the slider one.
+        function inputHandler(event) {
+          stopAnimation();
+          setDate(event.value);
+        }
+
+        slider.on("thumb-drag", inputHandler);
+
+        // Toggle animation on/off when user
+        // clicks on the play button
+        playButton.addEventListener("click", function() {
+          if (playButton.classList.contains("toggled")) {
+            stopAnimation();
+          } else {
+            startAnimation();
+          }
+        });
+
+        /**
+         * Starts the animation that cycle
+         */
+         function startAnimation() {
+          stopAnimation();
+          if(convertToDateString(slider.values[0]) == convertToDateString(new Date(endDate))){
+            setDate(startDate);
+          }
+          animation = animate(slider.values[0]);
+          playButton.classList.add("toggled");
+        }
+
+        /**
+         * Stops the animations
+         */
+        function stopAnimation() {
+          if (!animation) {
+            return;
+          }
+
+          animation.remove();
+          animation = null;
+          playButton.classList.remove("toggled");
+        }
+
+        /**
+         * Animates the color visual variable continously
+         */
+        function animate(startValue) {
+          var animating = true;
+          var value = startValue;
+
+          var frame = function(timestamp) {
+            if (!animating) {
+              return;
+            }
+
+            value += 86400 * 90;
+            if (value >= endDate) {
+              value = startDate;
+              stopAnimation();
+              return;
+            }
+
+            setDate(value);
+
+            // Update at 30fps
+            setTimeout(function() {
+              requestAnimationFrame(frame);
+            }, 1000 / 60);
+          };
+
+          frame();
+
+          return {
+            remove: function() {
+              animating = false;
+            }
+          };
+        }
+        /* */
+        const magMax = {
+            onStatisticField: "ct",
+            outStatisticFieldName: "Max_confirmed",
+            statisticType: "max"
+          };
+
+        const magSum = {
+          onStatisticField: "ct",
+          outStatisticFieldName: "Sum_confirmed",
+          statisticType: "sum"
+        };
+
+        const tremorCount = {
+          onStatisticField: "1=1",
+          outStatisticFieldName: "record_count",
+          statisticType: "count"
+        };
+
+        const statsFields = {
+            Sum_confirmed: "Total Confirmed"
+        };
+
+
+        // add a legend for the earthquakes layer
+        const legendExpand = new Expand({
+          collapsedIconClass: "esri-icon-collapse",
+          expandIconClass: "esri-icon-expand",
+          expandTooltip: "Legend",
+          view: view,
+          content: new Legend({
+            view: view
+          }),
+          expanded: false
+        });
+        view.ui.add(legendExpand, "bottom-left");
+
+        const statsDiv = document.getElementById("statsDiv");
+        const infoDiv = document.getElementById("infoDiv");
+        const infoDivExpand = new Expand({
+          collapsedIconClass: "esri-icon-collapse",
+          expandIconClass: "esri-icon-expand",
+          expandTooltip: "Expand logation info",
+          view: view,
+          content: infoDiv,
+          expanded: true
+        });
+        //view.ui.add(infoDivExpand, "top-right");
+
+        const toggleButton = document.getElementById("toggle-cluster");
+        //toggleButton.addEventListener("click", toggleClustering);
+
+        // To turn off clustering on a layer, set the
+        // featureReduction property to null
+        function toggleClustering() {
+          let fr = layer.featureReduction;
+          layer.featureReduction =
+            fr && fr.type === "cluster" ? null : clusterConfig;
+          toggleButton.innerText =
+            toggleButton.innerText === "Enable Clustering"
+              ? "Disable Clustering"
+              : "Enable Clustering";
+        }
+      });
+    </script>
+
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+      }
+
+      #applicationDiv {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      #viewDiv {
+        width: 100%;
+        height: 100%;
+        flex: 1 1 auto;
+        order: 1;
+      }
+
+      #titleDiv {
+        font-weight: 400;
+        font-style: normal;
+        font-size: 1.2019rem;
+        padding: 10px;
+      }
+
+      #sliderContainer {
+        flex: 0 0 80px;
+        order: 2;
+
+        display: flex;
+        flex-flow: row;
+
+        padding: 0 12px;
+      }
+
+      #sliderValue {
+        flex: 0 0 100px;
+        order: 1;
+
+        display: flex;
+        justify-content: center;
+        flex-direction: column;
+        text-align: center;
+
+        font-size: 1.3rem;
+      }
+
+      #sliderInnerContainer {
+        flex: 1 1 auto;
+        order: 2;
+
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 20px;
+      }
+
+      #slider {
+        width: 100%;
+      }
+      #slider > div + div {
+        margin-left:20px;
+      }
+      /**
+    * Play/Stop toggle button
+    */
+
+      #playButton {
+        flex: 0 0 100px;
+        order: 3;
+
+        margin: 20px 0;
+      }
+
+      .toggle-button {
+        display: flex;
+      }
+
+      .toggle-button.toggled .toggle-button-icon {
+        color: #cc1b1b;
+      }
+
+      .toggle-button .toggle-button-icon {
+        color: #1bcc1b;
+      }
+
+      .toggle-button > :nth-child(2) {
+        display: none;
+      }
+
+      .toggle-button.toggled > :nth-child(1) {
+        display: none;
+      }
+
+      .toggle-button.toggled > :nth-child(2) {
+        display: block;
+      }
+      /**
+      * Hover tooltip
+      */
+
+      .tooltip {
+        position: absolute;
+        pointer-events: none;
+        transition: opacity 200ms;
+      }
+
+      .tooltip > div {
+        margin: 0 auto;
+        padding: 12px;
+        border-radius: 4px;
+        box-shadow: 0px 0px 4px rgba(255, 255, 255, 0.75);
+        transform: translate3d(-50%, -125%, 0);
+      }
+      .esri-view .esri-view-surface--inset-outline:focus::after {
+        outline: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="applicationDiv">
+      <div id="viewDiv">
+        <div id="titleDiv" class="esri-widget">COVID-19 Cases</div>
+      </div>
+      <div id="sliderContainer" class="esri-widget">
+        <span id="sliderValue"></span>
+        <div id="sliderInnerContainer">
+          <div id="slider"></div>
+        </div>
+        <div
+          id="playButton"
+          class="esri-widget esri-widget--button toggle-button"
+        >
+          <div>
+            <span
+              class="toggle-button-icon esri-icon-play"
+              aria-label="play icon"
+            ></span>
+            Play
+          </div>
+          <div>
+            <span
+              class="toggle-button-icon esri-icon-pause"
+              aria-label="pause icon"
+            ></span>
+            Pause
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
