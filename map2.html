@@ -10,7 +10,8 @@
   For more information about the timeslider-filter sample, read the original sample description at developers.arcgis.com.
   https://developers.arcgis.com/javascript/latest/sample-code/timeslider-filter/index.html
   -->
-<title>COVID-19 ESRI ArcGIS Map</title>
+    <title>COVID-19 Over Time</title>
+    <link rel="shortcut icon" href="/favicon.ico" />
     <link
       rel="stylesheet"
       href="https://js.arcgis.com/4.14/esri/themes/dark/main.css"
@@ -26,86 +27,68 @@
         "esri/widgets/Slider",
         "esri/widgets/Expand",
         "esri/widgets/Legend"
-      ], function(Map, MapView, promiseUtils, GeoJSONLayer, TimeSlider, Slider, Expand, Legend) {
+      ], function(
+        Map,
+        MapView,
+        promiseUtils,
+        GeoJSONLayer,
+        TimeSlider,
+        Slider,
+        Expand,
+        Legend
+      ) {
         let layerView;
 
         const layer = new GeoJSONLayer({
-          url:
-            "/esri.geojson",
+          url: "/esri.geojson",
           copyright: "CDC / Johns Hopkins",
           title: "COVID-19 Cases over time",
-          displayField: 'place',
+          displayField: "place",
           renderer: {
             type: "simple",
             field: "ct",
             symbol: {
               type: "simple-marker",
-              color: "cyan",
-              outline: {
-                color: "white"
-              }
+              color: "#00ffff"
             },
             visualVariables: [
-            {
-              type: "opacity",
-              field: "ct",
-              stops: [
-                {
-                  value: 1,
-                  opacity: .7
-                }
-              ],
-              legendOptions: {
-                showLegend: false
-              }
-            },
               {
-                type: "size",
+                type: "opacity",
                 field: "ct",
                 stops: [
                   {
                     value: 1,
-                    size: "7px"
-                  },
-                  {
-                    value: 200,
-                    size: "20"
-                  },
-                  {
-                    value: 1000,
-                    size: "50"
-                  },
-                  {
-                    value: 5000,
-                    size: "90"
-                  }
-                ],
-                legendOptions: {
-                  title: "Confirmed Cases"
-                }
-              },
-              {
-                type: "color",
-                field: "ct",
-                stops: [
-                  {
-                    value: 1,
-                    color: "#F9C653",
-                    label: ">1"
-                  },
-                  {
-                    value: 100,
-                    color: "#F8864D",
-                    label: ">100"
-                  },
-                  {
-                    value: 1000,
-                    color: "#C53C06",
-                    label: ">1000"
+                    opacity: 0.7
                   }
                 ],
                 legendOptions: {
                   showLegend: false
+                }
+              },
+              ,
+              {
+                type: "size",
+                minDataValue: 1,
+                maxDataValue: 3000,
+                minSize: 5,
+                maxSize: 80,
+                valueExpression: "$feature.ct * 1",
+                valueExpressionTitle: "Confirmed Cases",
+                valueUnit: "unknown"
+              },
+              {
+                type: "color",
+                valueExpression: "( $feature.ct / 1 ) * 1",
+                valueExpressionTitle: "Confirmed Cases",
+                stops: [
+                  { value: 1, color: "cyan" },
+                  //{ value: 800, color: "#98d1d1" },
+                  { value: 1600, color: "#ffed85" },
+                  //{ value: 3500, color: "#df979e" },
+                  { value: 3500, color: "#c80064" }
+                ],
+                legendOptions: {
+                  showLegend: true
                 }
               }
             ]
@@ -130,6 +113,11 @@
                     fieldName: "coords",
                     label: "Coordinates",
                     visible: true
+                  },
+                  {
+                    fieldName: "dateString",
+                    label: "Reported On",
+                    visible: true
                   }
                 ]
               }
@@ -144,14 +132,15 @@
             content: [
               {
                 type: "text",
-                text: "This cluster represents <b>{cluster_count}</b> locations."
+                text:
+                  "This cluster represents <b>{cluster_count}</b> locations."
               }
             ]
           }
         };
-/* */
-        layer.featureReduction = clusterConfig;
-/* */
+        /* */
+        //layer.featureReduction = clusterConfig;
+        /* */
         const map = new Map({
           basemap: "dark-gray",
           layers: [layer]
@@ -164,32 +153,29 @@
           center: [-117.50268, 34.04713]
         });
 
-
         var applicationDiv = document.getElementById("applicationDiv");
-        var sliderValue = document.getElementById("sliderValue");
         var playButton = document.getElementById("playButton");
         var titleDiv = document.getElementById("titleDiv");
         var animation = null;
 
-
-
-        var yesterday =  function(){
+        var yesterday = function() {
           var dt = new Date();
-          return new Date((dt.setDate(dt.getDate()-1))).toString();
-        }
+          return new Date(dt.setDate(dt.getDate() - 1)).toString();
+        };
 
         const startDate = new Date(2020, 0, 22).getTime();
-        const endDate = (new Date().getTime()) - (86400 * 1000/2);
+        var hrs = 16;
+        const endDate = new Date().getTime() - (3600 * 1000 * hrs);
         console.log(new Date().getTime());
         console.log(new Date(endDate));
-       
-        function convertToDateString(value){
+
+        function convertToDateString(value) {
           return new Date(value).toLocaleDateString();
         }
 
-        
         view.ui.empty("top-left");
         view.ui.add(titleDiv, "top-left");
+
         const slider = new Slider({
           container: "slider",
           min: startDate,
@@ -197,11 +183,12 @@
           values: [endDate],
           step: 86400, //seconds in a day
           rangeLabelsVisible: true,
-          precision: 0
+          precision: 0,
+          labelsVisible: true
         });
         slider.labelFormatFunction = function(value, type) {
-          return convertToDateString((type === "value") ? value.toFixed(0) : value);
-        }
+          return convertToDateString(value);
+        };
 
         const dateFilterField = "dateString";
 
@@ -211,13 +198,13 @@
           setDate(endDate);
         });
 
-        function setDate(value){
-          sliderValue.innerText = convertToDateString(value);
-          console.log(value + ' = ' + convertToDateString(value));
+        function setDate(value) {
+          var dateStr = convertToDateString(value);
+          //console.log(value + ' = ' + convertToDateString(value));
           slider.viewModel.setValue(0, value);
           layerView.filter = {
-            where: dateFilterField + " = '" + sliderValue.innerText + "'"
-          }
+            where: dateFilterField + " = '" + dateStr + "'"
+          };
         }
 
         // When user drags the slider:
@@ -243,9 +230,12 @@
         /**
          * Starts the animation that cycle
          */
-         function startAnimation() {
+        function startAnimation() {
           stopAnimation();
-          if(convertToDateString(slider.values[0]) == convertToDateString(new Date(endDate))){
+          if (
+            convertToDateString(slider.values[0]) ==
+            convertToDateString(new Date(endDate))
+          ) {
             setDate(startDate);
           }
           animation = animate(slider.values[0]);
@@ -302,10 +292,10 @@
         }
         /* */
         const magMax = {
-            onStatisticField: "ct",
-            outStatisticFieldName: "Max_confirmed",
-            statisticType: "max"
-          };
+          onStatisticField: "ct",
+          outStatisticFieldName: "Max_confirmed",
+          statisticType: "max"
+        };
 
         const magSum = {
           onStatisticField: "ct",
@@ -320,9 +310,8 @@
         };
 
         const statsFields = {
-            Sum_confirmed: "Total Confirmed"
+          Sum_confirmed: "Total Confirmed"
         };
-
 
         // add a legend for the earthquakes layer
         const legendExpand = new Expand({
@@ -407,19 +396,6 @@
 
         padding: 0 12px;
       }
-
-      #sliderValue {
-        flex: 0 0 100px;
-        order: 1;
-
-        display: flex;
-        justify-content: center;
-        flex-direction: column;
-        text-align: center;
-
-        font-size: 1.3rem;
-      }
-
       #sliderInnerContainer {
         flex: 1 1 auto;
         order: 2;
@@ -432,9 +408,10 @@
 
       #slider {
         width: 100%;
+        height: 60px;
       }
       #slider > div + div {
-        margin-left:20px;
+        margin-left: 20px;
       }
       /**
     * Play/Stop toggle button
@@ -442,8 +419,8 @@
 
       #playButton {
         flex: 0 0 100px;
-        order: 3;
-
+        order: 1;
+        height: 40px;
         margin: 20px 0;
       }
 
@@ -453,10 +430,12 @@
 
       .toggle-button.toggled .toggle-button-icon {
         color: #cc1b1b;
+        font-size: 40px;
       }
 
       .toggle-button .toggle-button-icon {
         color: #1bcc1b;
+        font-size: 40px;
       }
 
       .toggle-button > :nth-child(2) {
@@ -496,31 +475,25 @@
   <body>
     <div id="applicationDiv">
       <div id="viewDiv">
-        <div id="titleDiv" class="esri-widget">COVID-19 Cases</div>
+        <div id="titleDiv" class="esri-widget">COVID-19 Spread Over Time</div>
       </div>
       <div id="sliderContainer" class="esri-widget">
-        <span id="sliderValue"></span>
-        <div id="sliderInnerContainer">
-          <div id="slider"></div>
-        </div>
-        <div
-          id="playButton"
-          class="esri-widget esri-widget--button toggle-button"
-        >
+        <div id="playButton" class="esri-widget esri-widget--button toggle-button">
           <div>
             <span
               class="toggle-button-icon esri-icon-play"
               aria-label="play icon"
             ></span>
-            Play
           </div>
           <div>
             <span
               class="toggle-button-icon esri-icon-pause"
               aria-label="pause icon"
             ></span>
-            Pause
           </div>
+        </div>
+        <div id="sliderInnerContainer">
+          <div id="slider"></div>
         </div>
       </div>
     </div>

@@ -1,12 +1,17 @@
 'use strict';
+const compression = require('compression');
 const express = require("express");
-const http = require('http');
 const app = express();
 const parser = require('./parse');
 const esriData = require('./esri');
 
+app.use(compression());
+
 app.get("/map", (req, res) => {
     res.sendFile('./map2.html', { root: __dirname });
+});
+app.get("/favicon.ico", (req, res) => {
+    res.sendFile('./favicon.png', { root: __dirname });
 });
 
 // The data
