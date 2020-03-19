@@ -7,9 +7,15 @@ const esriData = require('./esri');
 
 app.use(compression());
 
+
+app.get("/", (req, res) => {
+    res.sendFile('./map2.html', { root: __dirname });
+});
+
 app.get("/map", (req, res) => {
     res.sendFile('./map2.html', { root: __dirname });
 });
+
 app.get("/favicon.ico", (req, res) => {
     res.sendFile('./favicon.png', { root: __dirname });
 });
@@ -21,18 +27,25 @@ app.get("/data", (req, res) => {
         res.json(data);
     });
 });
+
 // The esri
 app.get("/esri.geojson", (req, res) => {
+    getEsriData(res);
+});
+
+// API versioning
+app.get("/api/v2/esri.geojson", (req, res) => {
+    getEsriData(res);
+});
+
+function getEsriData(res){
     parser.run(function(data){
-        //res.type('application/json');
         console.log('getting esri data');
         let d = new esriData(data);
-        //console.log(d);
         res.header("Content-Type",'application/geo+json');
-        //res.send(JSON.stringify(d, null, 4));
         res.json(d);
     });
-});
+}
 
 const port = process.env.PORT || 3000;
 

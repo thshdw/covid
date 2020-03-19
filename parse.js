@@ -57,7 +57,7 @@ function loadEtl(record, col){
       etl.push(rec);
     }
     else if(ct != 0){
-      console.log(record);
+      //console.log(record);
     }
   }
 }
