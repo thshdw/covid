@@ -150,7 +150,7 @@
           map: map,
           container: "viewDiv",
           zoom: 3,
-          center: [-117.50268, 34.04713]
+          center: [	5,35 ]//[-117.50268, 34.04713]
         });
         view.constraints = {
           minZoom: 2,  // User cannot zoom out beyond a scale of 1:500,000
@@ -181,8 +181,18 @@
         //console.log(new Date().getTime());
         //console.log(new Date(endDate));
 
+        /**
+          DATE FORMATTER
+        **/
         function convertToDateString(value) {
-          return new Date(value).toLocaleDateString();
+          //YYYY-MM-DD  
+          let date = new Date(value);
+          let dayOfMonth = date.getDate();
+          let month = date.getMonth() + 1;
+          let year = date.getFullYear();
+          month = month < 10 ? '0' + month : month;
+          dayOfMonth = dayOfMonth < 10 ? '0' + dayOfMonth : dayOfMonth;
+          return `${year}-${month}-${dayOfMonth}`
         }
 
         view.ui.empty("top-left");
@@ -469,6 +479,10 @@
       }
       #slider > div + div {
         margin-left: 20px;
+      }
+      .esri-slider--horizontal .esri-slider__max, 
+      .esri-slider--horizontal .esri-slider__min {
+        width: auto;
       }
       /**
     * Play/Stop toggle button
