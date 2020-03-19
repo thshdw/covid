@@ -18,6 +18,28 @@
     />
     <script src="https://js.arcgis.com/4.14/"></script>
     <script>
+        var showLong = "5";
+        var showLat = "35";
+        var zoomLevel = 3;
+        getLocation();
+  
+          function getLocation() {
+            if (!navigator.geolocation) {
+            geoNote.innerText = "Geolocation not supported";
+            } else {
+              navigator.geolocation.getCurrentPosition(geoSuccess, geoError)
+            }
+          }
+  
+          function geoSuccess(position) {
+            showLat = position.coords.latitude;
+            showLong = position.coords.longitude;
+            zoomLevel = 5;
+          }
+  
+          function geoError() {
+            geoNote.innerText = "Geolocation unknown";
+          }
       require([
         "esri/Map",
         "esri/views/MapView",
@@ -149,9 +171,10 @@
         var view = new MapView({
           map: map,
           container: "viewDiv",
-          zoom: 3,
-          center: [	5,35 ]//[-117.50268, 34.04713]
+          zoom: zoomLevel,
+          center: [showLong, showLat]
         });
+        view.ui.move("zoom", "top-right");
         view.constraints = {
           minZoom: 2,  // User cannot zoom out beyond a scale of 1:500,000
           maxZoom: 7,  // User can overzoom tiles
@@ -162,6 +185,7 @@
         var playButton = document.getElementById("playButton");
         var titleDiv = document.getElementById("titleDiv");
         var updateNote = document.getElementById("updateNote");
+        var geoNote = document.getElementById("geoNote");
         var animation = null;
 
         var yesterday = function() {
@@ -448,6 +472,13 @@
         opacity: .8;
       }
 
+      #geoNote{
+        font-size: 12px;
+        font-style: italic;
+        opacity: .8;
+        margin-bottom: 0.5em;
+      }
+
       #statsDiv span {
         color: #f9c653;
         font-size: 12pt;
@@ -549,8 +580,7 @@
         <div id="titleDiv" class="esri-widget">
           <div><b>COVID-19 Spread Over Time</b></div>
           <div id="updateNote"></div>
-          
-          <br />
+          <div id="geoNote"></div>
           <div id="statsDiv" class="esri-widget"></div>
         </div>
       </div>
